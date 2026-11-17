@@ -195,6 +195,10 @@ public struct RoutePlan: Codable, Equatable, Sendable {
     public let polyline: [GCJ02Point]
     public let maneuvers: [RouteManeuver]
     public let traffic: [TrafficSegment]
+    /// A provider-supplied legal limit when one exists. Routes without a
+    /// trustworthy value keep nil so the runtime can fall back to the
+    /// road-class estimate instead of showing a blank sign.
+    public let speedLimitKPH: UInt16?
 
     public init(
         routeID: String,
@@ -205,7 +209,8 @@ public struct RoutePlan: Codable, Equatable, Sendable {
         totalDurationS: Int,
         polyline: [GCJ02Point],
         maneuvers: [RouteManeuver],
-        traffic: [TrafficSegment]
+        traffic: [TrafficSegment],
+        speedLimitKPH: UInt16? = nil
     ) {
         schemaVersion = 1
         self.routeID = routeID
@@ -217,6 +222,7 @@ public struct RoutePlan: Codable, Equatable, Sendable {
         self.polyline = polyline
         self.maneuvers = maneuvers
         self.traffic = traffic
+        self.speedLimitKPH = speedLimitKPH
     }
 
     enum CodingKeys: String, CodingKey {
@@ -230,6 +236,7 @@ public struct RoutePlan: Codable, Equatable, Sendable {
         case polyline
         case maneuvers
         case traffic
+        case speedLimitKPH = "speed_limit_kph"
     }
 }
 

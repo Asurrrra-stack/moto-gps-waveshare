@@ -37,6 +37,8 @@ final class AppModel: ObservableObject {
     private var routePreviewTask: Task<Void, Never>?
     private var routePreviewRequestID: UInt32 = 1
     private var routePreviewGeneration: UInt64 = 0
+    /// Latest surrounding-map window, kept for road-class speed estimation.
+    private var lastMapScene: OfflineMapSceneWindow?
 
     private static let recentPlacesKey = "MotoGPS.RecentPlaces.v1"
 
@@ -48,6 +50,7 @@ final class AppModel: ObservableObject {
         recentPlaces = Self.loadRecentPlaces()
 
         surroundingMap.onScene = { [weak self] scene in
+            self?.lastMapScene = scene
             self?.bluetooth.sendMapScene(scene)
         }
 
@@ -334,6 +337,10 @@ final class AppModel: ObservableObject {
                 liveProvider: liveRouteProvider
             )
         )
+        runtime.speedLimitProvider = { [weak self] _ in
+            guard let self else { return nil }
+            return self.estimatedSpeedLimitKPH()
+        }
         bind(runtime)
         self.runtime = runtime
         isDemoActive = false
@@ -345,6 +352,72 @@ final class AppModel: ObservableObject {
         isNavigationActive = started
         if !started {
             self.runtime = nil
+        }
+    }
+
+    /// Road-class estimate used when the gateway returns no legal limit.
+    /// The mapped road nearest the latest map window origin decides the band;
+    /// with no map window the runtime fallback value applies instead.
+    private func estimatedSpeedLimitKPH() -> UInt16? {
+        guard let scene = lastMapScene else { return nil }
+        let origin = scene.origin
+        let metresPerLatitude = 111_195.0 / 1_000_000
+        let latitudeRadians = Double(origin.latitudeE6) / 1_000_000 * .pi / 180
+        let metresPerLongitude = metresPerLatitude * cos(latitudeRadians)
+        var nearest: (distanceM: Double, roadClass: String)?
+        for road in scene.roads {
+            let points = road.points
+            guard points.count >= 2 else { continue }
+            for index in 1 ..< points.count {
+                let distance = Self.distanceToSegment(
+                    origin,
+                    points[index - 1],
+                    points[index],
+                    metresPerLatitude: metresPerLatitude,
+                    metresPerLongitude: metresPerLongitude
+                )
+                if nearest.map({ distance < $0.distanceM }) ?? true {
+                    nearest = (distance, road.roadClass)
+                }
+            }
+        }
+        guard let nearest else { return nil }
+        return Self.speedLimitKPH(forRoadClass: nearest.roadClass)
+    }
+
+    private static func distanceToSegment(
+        _ origin: OfflineMapPointE6,
+        _ start: OfflineMapPointE6,
+        _ end: OfflineMapPointE6,
+        metresPerLatitude: Double,
+        metresPerLongitude: Double
+    ) -> Double {
+        let originX = Double(origin.longitudeE6) * metresPerLongitude
+        let originY = Double(origin.latitudeE6) * metresPerLatitude
+        let startX = Double(start.longitudeE6) * metresPerLongitude
+        let startY = Double(start.latitudeE6) * metresPerLatitude
+        let endX = Double(end.longitudeE6) * metresPerLongitude
+        let endY = Double(end.latitudeE6) * metresPerLatitude
+        let deltaX = endX - startX
+        let deltaY = endY - startY
+        let lengthSquared = deltaX * deltaX + deltaY * deltaY
+        guard lengthSquared > 0 else { return hypot(originX - startX, originY - startY) }
+        let projection = ((originX - startX) * deltaX + (originY - startY) * deltaY) / lengthSquared
+        let clamped = min(max(projection, 0), 1)
+        let nearestX = startX + clamped * deltaX
+        let nearestY = startY + clamped * deltaY
+        return hypot(originX - nearestX, originY - nearestY)
+    }
+
+    private static func speedLimitKPH(forRoadClass roadClass: String) -> UInt16 {
+        switch roadClass {
+        case "motorway", "motorway_link": return 120
+        case "trunk", "trunk_link", "primary", "primary_link": return 80
+        case "secondary", "secondary_link": return 60
+        case "tertiary", "tertiary_link": return 50
+        case "residential", "unclassified", "living_street": return 40
+        case "service": return 30
+        default: return SharedNavigationRuntime.fallbackSpeedLimitKPH
         }
     }
 
@@ -360,6 +433,10 @@ final class AppModel: ObservableObject {
                 session: demoSession
             )
         )
+        runtime.speedLimitProvider = { [weak self] _ in
+            guard let self else { return nil }
+            return self.estimatedSpeedLimitKPH()
+        }
         bind(runtime)
         self.runtime = runtime
         navigationFailure = nil

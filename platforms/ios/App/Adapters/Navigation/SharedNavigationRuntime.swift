@@ -7,6 +7,13 @@ import MotoNavigationCore
 final class SharedNavigationRuntime {
     var onSnapshot: ((MotoNavCoreSnapshot) -> Void)?
     var onFailure: ((String) -> Void)?
+    /// Supplies a road-class estimate when the provider did not return a
+    /// trustworthy legal limit. Returning nil keeps the terminal fallback.
+    var speedLimitProvider: (@MainActor (RoutePlan) -> UInt16?)?
+
+    /// The city-wide default keeps the sign present when neither the provider
+    /// nor the offline map can name a limit for the current road.
+    static let fallbackSpeedLimitKPH: UInt16 = 60
 
     private let bridge = MotoNavCoreBridge()
     private let locationSource: any NavigationLocationSource
@@ -176,7 +183,7 @@ final class SharedNavigationRuntime {
                 guard let self else { return }
                 let previousGeneration = self.bridge.snapshot.routeGeneration
                 let commands = self.bridge.acceptRoute(
-                    Self.bridgeRoute(envelope.route),
+                    self.bridgeRoute(envelope.route),
                     requestID: request.requestID,
                     receivedAtMs: Self.nowMs()
                 )
@@ -264,7 +271,7 @@ final class SharedNavigationRuntime {
         }
     }
 
-    private static func bridgeRoute(_ route: RoutePlan) -> MotoNavRouteValue {
+    private func bridgeRoute(_ route: RoutePlan) -> MotoNavRouteValue {
         let value = MotoNavRouteValue()
         value.routeID = route.routeID
         value.totalDistanceM = route.totalDistanceM
@@ -286,7 +293,11 @@ final class SharedNavigationRuntime {
             result.roundaboutExit = UInt8(clamping: maneuver.roundaboutExit)
             return result
         }
-        value.traffic = bridgeTraffic(route.traffic)
+        value.traffic = Self.bridgeTraffic(route.traffic)
+        // Provider data wins; otherwise the road-class estimate applies so the
+        // device never receives 0 (which hides the sign entirely).
+        let providerLimit = speedLimitProvider.flatMap { $0(route) }
+        value.speedLimitKPH = route.speedLimitKPH ?? providerLimit ?? Self.fallbackSpeedLimitKPH
         return value
     }
 
