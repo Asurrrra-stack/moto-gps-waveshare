@@ -367,13 +367,17 @@ enum NavigationFlag : std::uint16_t {
   NavigationRouteRequestInFlight = 1U << 5U,
   NavigationTrafficRequestInFlight = 1U << 6U,
   NavigationHasRouteView = 1U << 7U,
+  // Set when speed_limit_kph is a road-class estimate rather than a value the
+  // route provider supplied. The instrument draws estimated limits with a
+  // neutral ring.
+  NavigationSpeedLimitEstimated = 1U << 8U,
 };
 
 constexpr std::uint16_t kKnownNavigationFlags =
     NavigationHasDestination | NavigationHasFix | NavigationGnssStale |
     NavigationOffRoute | NavigationHasNextManeuver |
     NavigationRouteRequestInFlight | NavigationTrafficRequestInFlight |
-    NavigationHasRouteView;
+    NavigationHasRouteView | NavigationSpeedLimitEstimated;
 
 struct NavigationSnapshot {
   NavigationState state = NavigationState::Idle;

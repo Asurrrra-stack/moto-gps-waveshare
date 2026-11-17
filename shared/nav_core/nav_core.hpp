@@ -79,6 +79,9 @@ struct NavSnapshot {
   float horizontal_accuracy_m = 0.0F;
   float cross_track_distance_m = 0.0F;
   std::uint16_t speed_limit_kph = 0;
+  // Mirrors RouteBundle::speed_limit_estimated: an estimated limit renders
+  // with a neutral ring instead of the red legal-limit ring.
+  bool speed_limit_estimated = false;
 
   // A small, bounded route window for the heading-up instrument view.  It is
   // intentionally part of the shared snapshot so Web and firmware render the

@@ -8,12 +8,9 @@ final class SharedNavigationRuntime {
     var onSnapshot: ((MotoNavCoreSnapshot) -> Void)?
     var onFailure: ((String) -> Void)?
     /// Supplies a road-class estimate when the provider did not return a
-    /// trustworthy legal limit. Returning nil keeps the terminal fallback.
-    var speedLimitProvider: (@MainActor (RoutePlan) -> UInt16?)?
-
-    /// The city-wide default keeps the sign present when neither the provider
-    /// nor the offline map can name a limit for the current road.
-    static let fallbackSpeedLimitKPH: UInt16 = 60
+    /// trustworthy legal limit. Returning nil leaves the sign hidden, which is
+    /// the correct outcome for roads that cannot be classified at all.
+    var speedLimitProvider: (@MainActor (RoutePlan) -> (kph: UInt16, estimated: Bool)?)?
 
     private let bridge = MotoNavCoreBridge()
     private let locationSource: any NavigationLocationSource
@@ -294,10 +291,15 @@ final class SharedNavigationRuntime {
             return result
         }
         value.traffic = Self.bridgeTraffic(route.traffic)
-        // Provider data wins; otherwise the road-class estimate applies so the
-        // device never receives 0 (which hides the sign entirely).
-        let providerLimit = speedLimitProvider.flatMap { $0(route) }
-        value.speedLimitKPH = route.speedLimitKPH ?? providerLimit ?? Self.fallbackSpeedLimitKPH
+        // A provider value wins. Otherwise the road class may contribute an
+        // estimate, which the device draws with a neutral ring. When neither
+        // applies the limit stays 0 so the sign is hidden rather than invented.
+        let provided: (kph: UInt16, estimated: Bool)? = route.speedLimitKPH.map {
+            ($0, route.speedLimitEstimated ?? false)
+        }
+        let limit = provided ?? speedLimitProvider.flatMap { $0(route) }
+        value.speedLimitKPH = limit?.kph ?? 0
+        value.speedLimitEstimated = limit?.estimated ?? false
         return value
     }
 

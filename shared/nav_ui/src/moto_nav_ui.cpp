@@ -1792,6 +1792,17 @@ void update_navigation(const moto_ui_state_t *state) {
         std::snprintf(limit, sizeof(limit), "%u",
                       static_cast<unsigned>(state->speed_limit_kph));
         lv_label_set_text(ui.nav_limit_value, limit);
+        // A provider limit keeps the red legal ring; an inferred one carries a
+        // neutral ring so the two never read alike.
+        const bool estimated = state->speed_limit_estimated != 0;
+        lv_obj_set_style_border_color(ui.nav_limit, estimated ? kBlack : kRed,
+                                      0);
+        // A pure black ring collapses into the black page, leaving a bare
+        // white disc. A hairline graphite halo keeps the ring's silhouette
+        // readable while the ring itself stays black.
+        lv_obj_set_style_outline_width(ui.nav_limit, estimated ? px(2) : 0, 0);
+        lv_obj_set_style_outline_color(ui.nav_limit, kQuiet, 0);
+        lv_obj_set_style_outline_pad(ui.nav_limit, 0, 0);
         lv_obj_remove_flag(ui.nav_limit, LV_OBJ_FLAG_HIDDEN);
     } else {
         lv_obj_add_flag(ui.nav_limit, LV_OBJ_FLAG_HIDDEN);
@@ -2276,10 +2287,12 @@ void create_navigation_page() {
     // instrument's own secondary ring and never crowds the route. Real AMap
     // Web-Service snapshots use zero and stay hidden
     // because that API does not return a road speed limit.
-    // 49 px read too small on the panel; 54 keeps the same optical centre, so
-    // the badge still shares the horizontal centre line of the arrow and the
-    // distance number while staying clear of the progress arc below.
-    lv_obj_set_pos(ui.nav_limit, px(249), px(237));
+    // 49 px read too small on the panel; 54 keeps the same optical centre.
+    // The badge shares the horizontal centre line of the distance number, so
+    // its offset is derived from that type's optical centre rather than from
+    // the widget box: the 48 px digits sit 3 px above the geometric middle of
+    // their label frame, and the badge follows by the same amount.
+    lv_obj_set_pos(ui.nav_limit, px(249), px(240));
     lv_obj_set_style_radius(ui.nav_limit, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_color(ui.nav_limit, kWhite, 0);
     lv_obj_set_style_bg_opa(ui.nav_limit, LV_OPA_COVER, 0);
@@ -2288,6 +2301,9 @@ void create_navigation_page() {
     lv_obj_set_style_pad_all(ui.nav_limit, 0, 0);
     lv_obj_clear_flag(ui.nav_limit, LV_OBJ_FLAG_CLICKABLE);
     ui.nav_limit_value = make_label(ui.nav_limit, &lv_font_montserrat_28, kBlack, "70");
+    // Measured on the 466 px panel: centre alignment already puts the glyph
+    // box on the ring centre, so the digits stay optically centred without a
+    // nudge (an artificial offset pushes them off by 5 px).
     lv_obj_center(ui.nav_limit_value);
 
     ui.nav_progress = lv_arc_create(page);

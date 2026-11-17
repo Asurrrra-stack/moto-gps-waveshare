@@ -94,6 +94,10 @@ struct RouteBundle {
   std::uint32_t total_duration_s = 0;
   // Zero means the provider did not supply a trustworthy speed limit.
   std::uint16_t speed_limit_kph = 0;
+  // True when the limit is a road-class estimate rather than a provider value.
+  // The instrument draws that state with a neutral ring, so an inferred limit
+  // never masquerades as a legal one.
+  bool speed_limit_estimated = false;
   TimestampMs generated_at_ms = 0;
 };
 

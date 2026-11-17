@@ -377,6 +377,7 @@ void NavCore::accept_route(RouteReady event) {
   traffic_ = route_.traffic;
   view_.route_id = route_.route_id;
   view_.speed_limit_kph = route_.speed_limit_kph;
+  view_.speed_limit_estimated = route_.speed_limit_estimated;
   view_.route_progress_m = 0.0;
   view_.total_distance_m = route_.total_distance_m;
   view_.remaining_distance_m = route_.total_distance_m;

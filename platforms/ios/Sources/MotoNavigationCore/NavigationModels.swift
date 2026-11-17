@@ -199,6 +199,10 @@ public struct RoutePlan: Codable, Equatable, Sendable {
     /// trustworthy value keep nil so the runtime can fall back to the
     /// road-class estimate instead of showing a blank sign.
     public let speedLimitKPH: UInt16?
+    /// True when `speedLimitKPH` was inferred from the road class rather than
+    /// supplied by the provider. The device draws inferred limits with a
+    /// neutral ring.
+    public let speedLimitEstimated: Bool?
 
     public init(
         routeID: String,
@@ -210,7 +214,8 @@ public struct RoutePlan: Codable, Equatable, Sendable {
         polyline: [GCJ02Point],
         maneuvers: [RouteManeuver],
         traffic: [TrafficSegment],
-        speedLimitKPH: UInt16? = nil
+        speedLimitKPH: UInt16? = nil,
+        speedLimitEstimated: Bool = false
     ) {
         schemaVersion = 1
         self.routeID = routeID
@@ -223,6 +228,7 @@ public struct RoutePlan: Codable, Equatable, Sendable {
         self.maneuvers = maneuvers
         self.traffic = traffic
         self.speedLimitKPH = speedLimitKPH
+        self.speedLimitEstimated = speedLimitEstimated
     }
 
     enum CodingKeys: String, CodingKey {
@@ -237,6 +243,7 @@ public struct RoutePlan: Codable, Equatable, Sendable {
         case maneuvers
         case traffic
         case speedLimitKPH = "speed_limit_kph"
+        case speedLimitEstimated = "speed_limit_estimated"
     }
 }
 

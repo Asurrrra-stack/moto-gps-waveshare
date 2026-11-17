@@ -122,6 +122,9 @@ moto::ble::NavigationSnapshot SnapshotFromInput(
   snapshot.total_distance_m = input.totalDistanceM;
   snapshot.speed_deci_kph = input.speedDeciKPH;
   snapshot.speed_limit_kph = input.speedLimitKPH;
+  if (input.speedLimitEstimated) {
+    snapshot.flags |= moto::ble::NavigationSpeedLimitEstimated;
+  }
   snapshot.heading_cdeg = input.headingCentiDegrees;
   snapshot.accuracy_dm = input.accuracyDecimeters;
   snapshot.cross_track_dm = input.crossTrackDecimeters;

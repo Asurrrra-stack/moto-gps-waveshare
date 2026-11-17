@@ -662,6 +662,8 @@ void PhoneNavBridge::consume_navigation(
     phone_snapshot.cross_track_distance_m =
         static_cast<float>(input.cross_track_dm) / 10.0F;
     phone_snapshot.speed_limit_kph = input.speed_limit_kph;
+    phone_snapshot.speed_limit_estimated = has_flag(
+        input.flags, moto::ble::NavigationSpeedLimitEstimated);
     phone_snapshot.route_progress_m = input.route_progress_m;
     phone_snapshot.total_distance_m = input.total_distance_m;
     phone_snapshot.remaining_distance_m = input.remaining_distance_m;

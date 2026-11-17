@@ -143,6 +143,8 @@ typedef struct {
     uint32_t map_scene_revision;
     uint16_t speed_kph;
     uint16_t speed_limit_kph;
+    /* 1 = road-class estimate, drawn with a neutral ring; 0 = provider value */
+    uint8_t speed_limit_estimated;
     uint16_t heading_deg;
     uint8_t route_point_count;
     moto_ui_point_t route_points[MOTO_UI_ROUTE_POINT_CAPACITY];

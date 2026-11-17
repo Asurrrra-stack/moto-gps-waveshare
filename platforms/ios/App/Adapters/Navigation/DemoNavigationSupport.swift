@@ -250,7 +250,9 @@ final class DemoNavigationRouteProvider: NavigationRouteProviding, @unchecked Se
             totalDurationS: route.totalDurationS,
             polyline: route.polyline,
             maneuvers: route.maneuvers,
-            traffic: route.traffic
+            traffic: route.traffic,
+            speedLimitKPH: route.speedLimitKPH,
+            speedLimitEstimated: route.speedLimitEstimated ?? false
         )
     }
 
@@ -274,7 +276,10 @@ final class DemoNavigationRouteProvider: NavigationRouteProviding, @unchecked Se
             totalDurationS: JinanDemoFixture.fallbackDurationS,
             polyline: JinanDemoFixture.routeGCJ02,
             maneuvers: maneuvers,
-            traffic: []
+            traffic: [],
+            // The demo keeps a legal-looking limit so the showcase still
+            // renders the red-ring badge the way a mapped road would.
+            speedLimitKPH: 50
         )
     }
 

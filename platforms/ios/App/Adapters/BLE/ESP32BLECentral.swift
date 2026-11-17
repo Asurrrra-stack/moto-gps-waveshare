@@ -1121,6 +1121,7 @@ final class ESP32BLECentral: NSObject {
         input.totalDistanceM = clampedUInt32(state.totalDistanceM)
         input.speedDeciKPH = UInt16(clamping: Int((state.speedMPS * 36).rounded()))
         input.speedLimitKPH = state.speedLimitKPH
+        input.speedLimitEstimated = state.speedLimitEstimated
         if state.headingDeg.isFinite {
             let heading = state.headingDeg
             let normalized = heading.truncatingRemainder(dividingBy: 360) + (heading < 0 ? 360 : 0)

@@ -30,6 +30,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic) double totalDistanceM;
 @property(nonatomic) uint32_t totalDurationS;
 @property(nonatomic) uint16_t speedLimitKPH;
+@property(nonatomic) BOOL speedLimitEstimated;
 @property(nonatomic) uint64_t generatedAtMs;
 @end
 
@@ -59,6 +60,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, readonly) double horizontalAccuracyM;
 @property(nonatomic, readonly) double crossTrackDistanceM;
 @property(nonatomic, readonly) uint16_t speedLimitKPH;
+@property(nonatomic, readonly) BOOL speedLimitEstimated;
 @property(nonatomic, readonly) BOOL hasRouteView;
 @property(nonatomic, readonly) double routeViewOriginLongitudeDeg;
 @property(nonatomic, readonly) double routeViewOriginLatitudeDeg;

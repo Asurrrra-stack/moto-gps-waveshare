@@ -658,6 +658,7 @@ void NavPresenter::update(const NavSnapshot& snapshot) {
   ui_state_.speed_kph = rounded_saturated<std::uint16_t>(
       static_cast<double>(snapshot.speed_mps) * 3.6);
   ui_state_.speed_limit_kph = snapshot.speed_limit_kph;
+  ui_state_.speed_limit_estimated = snapshot.speed_limit_estimated ? 1 : 0;
   ui_state_.heading_deg = normalized_heading(snapshot.heading_deg);
   // Route, roads and buildings share one rider-centred transform. Besides
   // guaranteeing exact layer alignment, this avoids repeating trigonometry

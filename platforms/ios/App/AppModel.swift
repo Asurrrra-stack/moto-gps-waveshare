@@ -356,9 +356,10 @@ final class AppModel: ObservableObject {
     }
 
     /// Road-class estimate used when the gateway returns no legal limit.
-    /// The mapped road nearest the latest map window origin decides the band;
-    /// with no map window the runtime fallback value applies instead.
-    private func estimatedSpeedLimitKPH() -> UInt16? {
+    /// The mapped road nearest the latest map window origin decides the band.
+    /// Roads that cannot be classified return nil, so the sign stays hidden
+    /// instead of inventing a limit for a service road or a courtyard.
+    private func estimatedSpeedLimitKPH() -> (kph: UInt16, estimated: Bool)? {
         guard let scene = lastMapScene else { return nil }
         let origin = scene.origin
         let metresPerLatitude = 111_195.0 / 1_000_000
@@ -382,7 +383,10 @@ final class AppModel: ObservableObject {
             }
         }
         guard let nearest else { return nil }
-        return Self.speedLimitKPH(forRoadClass: nearest.roadClass)
+        guard let kph = Self.speedLimitKPH(forRoadClass: nearest.roadClass) else {
+            return nil
+        }
+        return (kph, true)
     }
 
     private static func distanceToSegment(
@@ -409,15 +413,16 @@ final class AppModel: ObservableObject {
         return hypot(originX - nearestX, originY - nearestY)
     }
 
-    private static func speedLimitKPH(forRoadClass roadClass: String) -> UInt16 {
+    /// Only classes whose legal limit is unambiguous nationwide get a band.
+    /// Residential streets, service roads and unclassified ways vary from
+    /// courtyard to courtyard, so they return nil and draw no sign at all.
+    private static func speedLimitKPH(forRoadClass roadClass: String) -> UInt16? {
         switch roadClass {
         case "motorway", "motorway_link": return 120
         case "trunk", "trunk_link", "primary", "primary_link": return 80
         case "secondary", "secondary_link": return 60
         case "tertiary", "tertiary_link": return 50
-        case "residential", "unclassified", "living_street": return 40
-        case "service": return 30
-        default: return SharedNavigationRuntime.fallbackSpeedLimitKPH
+        default: return nil
         }
     }
 

@@ -123,6 +123,7 @@ NSString *CommandName(moto::nav::CommandType type) {
 @property(nonatomic, readwrite) double horizontalAccuracyM;
 @property(nonatomic, readwrite) double crossTrackDistanceM;
 @property(nonatomic, readwrite) uint16_t speedLimitKPH;
+@property(nonatomic, readwrite) BOOL speedLimitEstimated;
 @property(nonatomic, readwrite) BOOL hasRouteView;
 @property(nonatomic, readwrite) double routeViewOriginLongitudeDeg;
 @property(nonatomic, readwrite) double routeViewOriginLatitudeDeg;
@@ -180,6 +181,7 @@ MotoNavCoreSnapshot *SnapshotFrom(const moto::nav::NavSnapshot &source) {
   value.horizontalAccuracyM = source.horizontal_accuracy_m;
   value.crossTrackDistanceM = source.cross_track_distance_m;
   value.speedLimitKPH = source.speed_limit_kph;
+  value.speedLimitEstimated = source.speed_limit_estimated;
   value.hasRouteView = source.has_route_view;
   value.routeViewOriginLongitudeDeg = source.route_view_origin.longitude_deg;
   value.routeViewOriginLatitudeDeg = source.route_view_origin.latitude_deg;
@@ -338,6 +340,7 @@ struct BridgeStorage {
   route.total_distance_m = input.totalDistanceM;
   route.total_duration_s = input.totalDurationS;
   route.speed_limit_kph = input.speedLimitKPH;
+  route.speed_limit_estimated = input.speedLimitEstimated;
   route.generated_at_ms = input.generatedAtMs;
   route.polyline.reserve(input.polyline.count);
   for (MotoNavPointValue *point in input.polyline) {
