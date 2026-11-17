@@ -32,6 +32,10 @@ constexpr lv_color_t kRoadMinor = LV_COLOR_MAKE(0x2B, 0x30, 0x33);
 constexpr lv_color_t kBuildingGray = LV_COLOR_MAKE(0x24, 0x29, 0x2C);
 constexpr lv_color_t kBuildingLandmark = LV_COLOR_MAKE(0x38, 0x40, 0x44);
 constexpr lv_color_t kQuiet = LV_COLOR_MAKE(0x48, 0x48, 0x48);
+// Mid grey for the estimated speed badge ring: it reads on the black page and
+// still stands apart from the white disc inside, so the badge needs neither a
+// black ring nor an extra outline to keep its silhouette.
+constexpr lv_color_t kStone = LV_COLOR_MAKE(0x90, 0x90, 0x90);
 constexpr lv_color_t kSoft = LV_COLOR_MAKE(0xCC, 0xCC, 0xCC);
 constexpr lv_color_t kAmber = LV_COLOR_MAKE(0xE6, 0xC8, 0x4F);
 constexpr lv_color_t kRed = LV_COLOR_MAKE(0xFF, 0x4B, 0x43);
@@ -1795,8 +1799,8 @@ void update_navigation(const moto_ui_state_t *state) {
         // A provider limit keeps the red legal ring; an inferred one carries a
         // neutral ring so the two never read alike.
         const bool estimated = state->speed_limit_estimated != 0;
-        lv_obj_set_style_border_color(ui.nav_limit, estimated ? kBlack : kRed,
-                                      0);
+        lv_obj_set_style_border_color(ui.nav_limit,
+                                      estimated ? kStone : kRed, 0);
         lv_obj_remove_flag(ui.nav_limit, LV_OBJ_FLAG_HIDDEN);
     } else {
         lv_obj_add_flag(ui.nav_limit, LV_OBJ_FLAG_HIDDEN);
@@ -2292,13 +2296,6 @@ void create_navigation_page() {
     lv_obj_set_style_bg_opa(ui.nav_limit, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(ui.nav_limit, kRed, 0);
     lv_obj_set_style_border_width(ui.nav_limit, px(5), 0);
-    // Both ring variants share one hairline white outline, so a black
-    // estimated ring still shows its silhouette against the black page and
-    // the red legal ring gains the same crisp edge. Ring and outline widths
-    // never vary with the variant.
-    lv_obj_set_style_outline_width(ui.nav_limit, px(1), 0);
-    lv_obj_set_style_outline_color(ui.nav_limit, kWhite, 0);
-    lv_obj_set_style_outline_pad(ui.nav_limit, 0, 0);
     lv_obj_set_style_pad_all(ui.nav_limit, 0, 0);
     lv_obj_clear_flag(ui.nav_limit, LV_OBJ_FLAG_CLICKABLE);
     ui.nav_limit_value = make_label(ui.nav_limit, &lv_font_montserrat_28, kBlack, "70");
