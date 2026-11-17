@@ -1797,12 +1797,6 @@ void update_navigation(const moto_ui_state_t *state) {
         const bool estimated = state->speed_limit_estimated != 0;
         lv_obj_set_style_border_color(ui.nav_limit, estimated ? kBlack : kRed,
                                       0);
-        // A pure black ring collapses into the black page, leaving a bare
-        // white disc. A hairline graphite halo keeps the ring's silhouette
-        // readable while the ring itself stays black.
-        lv_obj_set_style_outline_width(ui.nav_limit, estimated ? px(2) : 0, 0);
-        lv_obj_set_style_outline_color(ui.nav_limit, kQuiet, 0);
-        lv_obj_set_style_outline_pad(ui.nav_limit, 0, 0);
         lv_obj_remove_flag(ui.nav_limit, LV_OBJ_FLAG_HIDDEN);
     } else {
         lv_obj_add_flag(ui.nav_limit, LV_OBJ_FLAG_HIDDEN);
@@ -2298,6 +2292,13 @@ void create_navigation_page() {
     lv_obj_set_style_bg_opa(ui.nav_limit, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(ui.nav_limit, kRed, 0);
     lv_obj_set_style_border_width(ui.nav_limit, px(5), 0);
+    // Both ring variants share one hairline white outline, so a black
+    // estimated ring still shows its silhouette against the black page and
+    // the red legal ring gains the same crisp edge. Ring and outline widths
+    // never vary with the variant.
+    lv_obj_set_style_outline_width(ui.nav_limit, px(1), 0);
+    lv_obj_set_style_outline_color(ui.nav_limit, kWhite, 0);
+    lv_obj_set_style_outline_pad(ui.nav_limit, 0, 0);
     lv_obj_set_style_pad_all(ui.nav_limit, 0, 0);
     lv_obj_clear_flag(ui.nav_limit, LV_OBJ_FLAG_CLICKABLE);
     ui.nav_limit_value = make_label(ui.nav_limit, &lv_font_montserrat_28, kBlack, "70");
