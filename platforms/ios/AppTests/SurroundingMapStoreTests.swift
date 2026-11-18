@@ -27,7 +27,20 @@ private func mapTileTestData(_ tile: MapTileID, roadCount: Int = 1) throws -> Da
         schemaVersion: 1, coordinateSystem: "GCJ-02", tile: tile, roads: roads, buildings: [],
         source: OfflineMapSource(provider: "test-fixture", licence: "ODbL-1.0",
                                  attributionURL: "https://www.openstreetmap.org/copyright",
-                                 retrievedAt: "2026-09-16", bboxWGS84: nil)))
+                                 retrievedAt: "2026-09-16", bboxWGS84: nil),
+        speedLimits: nil))
+}
+
+private func speedLimitTestTile(_ tile: MapTileID, limitKPH: UInt16) -> MapTileDocument {
+    MapTileDocument(
+        schemaVersion: 1, coordinateSystem: "GCJ-02", tile: tile, roads: [], buildings: [],
+        source: OfflineMapSource(provider: "test-fixture", licence: "ODbL-1.0",
+                                 attributionURL: "https://www.openstreetmap.org/copyright",
+                                 retrievedAt: "2026-09-16", bboxWGS84: nil),
+        speedLimits: [OfflineMapSpeedLimit(limitKPH: limitKPH, roadClass: "residential", points: [
+            OfflineMapPointE6(latitudeE6: 40_000_000, longitudeE6: 116_000_000),
+            OfflineMapPointE6(latitudeE6: 40_000_000, longitudeE6: 116_001_000),
+        ])])
 }
 
 @MainActor
@@ -47,6 +60,18 @@ final class SurroundingMapStoreTests: XCTestCase {
         roads[0]["points_e6"] = [[91_000_000, -73_000_000], [40_000_100, -73_000_000]]
         object["roads"] = roads
         XCTAssertThrowsError(try MapTileDocument.decode(JSONSerialization.data(withJSONObject: object), expectedTile: tile))
+    }
+
+    func testExactSpeedLimitsTravelWithTheTileAndRejectImpossibleValues() throws {
+        let tile = MapTileID(x: 3, y: 4)
+        let accepted = try MapTileDocument.decode(
+            JSONEncoder().encode(speedLimitTestTile(tile, limitKPH: 40)), expectedTile: tile)
+        XCTAssertEqual(accepted.exactSpeedLimits.count, 1)
+        XCTAssertEqual(accepted.exactSpeedLimits.first?.limitKPH, 40)
+        // The index and the tile share one limit set; an out-of-range value
+        // must fail the decode instead of quietly drawing a wrong sign.
+        XCTAssertThrowsError(try MapTileDocument.decode(
+            JSONEncoder().encode(speedLimitTestTile(tile, limitKPH: 400)), expectedTile: tile))
     }
 
     func testConcurrentConsumersShareOneTileRequest() async throws {
