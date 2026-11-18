@@ -251,12 +251,11 @@ final class DemoNavigationRouteProvider: NavigationRouteProviding, @unchecked Se
             polyline: route.polyline,
             maneuvers: route.maneuvers,
             traffic: route.traffic,
-            // The live demo route comes from the AMap gateway, which reports no
-            // legal limit, so the showcase silently lost its badge. Fall back
-            // to the same legal-looking value the offline fixture uses and
-            // keep any real provider value when one exists.
-            speedLimitKPH: route.speedLimitKPH ?? 50,
-            speedLimitEstimated: route.speedLimitEstimated ?? false
+            // The demo shows the fixed 50 badge unconditionally: the showcase
+            // must look identical on every run, so neither a gateway value nor
+            // a road-class estimate may replace it.
+            speedLimitKPH: 50,
+            speedLimitEstimated: false
         )
     }
 
