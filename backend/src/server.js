@@ -56,6 +56,26 @@ function createDisabledProvider() {
   };
 }
 
+async function loadSpeedLimitTiles() {
+  const path = process.env.MOTO_SPEED_LIMITS_FILE;
+  if (!path) return null;
+  try {
+    const document = JSON.parse(await readFile(path, "utf8"));
+    if (document?.schema !== "moto-speed-limits-v1" || typeof document.tiles !== "object" ||
+        document.tiles === null) {
+      console.warn(`speed limit index ignored: unexpected schema in ${path}`);
+      return null;
+    }
+    const entries = new Map(Object.entries(document.tiles));
+    console.log(`speed limit index loaded: ${entries.size} tiles from ${path}`);
+    return entries;
+  } catch (error) {
+    // Surrounding streets still draw without exact limits; never fail startup.
+    console.warn(`speed limit index unavailable (${path}): ${error.message}`);
+    return null;
+  }
+}
+
 async function main() {
   const providerMode = process.env.MOTO_PROVIDER ?? "fixture";
   let provider;
@@ -83,6 +103,7 @@ async function main() {
     cacheDirectory: process.env.MOTO_MAP_CACHE_DIR,
     maximumCacheBytes: process.env.MOTO_MAP_CACHE_MAX_BYTES === undefined
       ? undefined : Number(process.env.MOTO_MAP_CACHE_MAX_BYTES),
+    speedLimitTiles: await loadSpeedLimitTiles(),
   });
   await mapProvider?.initialize();
   const server = createGateway({ provider, mapProvider, allowedOrigin, providerMode });

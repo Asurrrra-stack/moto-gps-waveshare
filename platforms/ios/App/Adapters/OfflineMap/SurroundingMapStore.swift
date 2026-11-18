@@ -46,6 +46,21 @@ enum SurroundingMapError: LocalizedError {
     }
 }
 
+/// One regulated road segment beside the current map window.  Exact limits
+/// come from the OSM extracts and arrive with the tile that contains them;
+/// they are matched against the rider's position, never drawn as geometry.
+struct OfflineMapSpeedLimit: Codable, Equatable, Sendable {
+    let limitKPH: UInt16
+    let roadClass: String
+    let points: [OfflineMapPointE6]
+
+    private enum CodingKeys: String, CodingKey {
+        case limitKPH = "limit"
+        case roadClass = "class"
+        case points = "points_e6"
+    }
+}
+
 struct MapTileDocument: Codable, Sendable {
     let schemaVersion: Int
     let coordinateSystem: String
@@ -53,10 +68,15 @@ struct MapTileDocument: Codable, Sendable {
     let roads: [OfflineMapRoad]
     let buildings: [OfflineMapBuilding]
     let source: OfflineMapSource
+    /// Omitted by gateways without a speed-limit index, so it must stay optional.
+    let speedLimits: [OfflineMapSpeedLimit]?
+
+    var exactSpeedLimits: [OfflineMapSpeedLimit] { speedLimits ?? [] }
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version", coordinateSystem = "coordinate_system"
         case tile, roads, buildings, source
+        case speedLimits = "speed_limits"
     }
 
     static let maximumBytes = 8 * 1_024 * 1_024
@@ -88,6 +108,17 @@ struct MapTileDocument: Codable, Sendable {
               value.buildings.allSatisfy({
                   buildingClasses.contains($0.buildingClass) && ($0.name?.count ?? 0) <= 1_024 &&
                   validPoints($0.points, minimum: 3) && $0.points.first != $0.points.last
+              }),
+              value.exactSpeedLimits.count <= 512,
+              value.exactSpeedLimits.allSatisfy({ limit in
+                  (5 ... 160).contains(limit.limitKPH) && (2 ... 256).contains(limit.points.count) &&
+                  limit.roadClass.count <= 32 &&
+                  // Limits carry their own budget: they must not consume the
+                  // road/building point allowance used above.
+                  limit.points.allSatisfy { point in
+                      (-90_000_000 ... 90_000_000).contains(point.latitudeE6) &&
+                      (-180_000_000 ... 180_000_000).contains(point.longitudeE6)
+                  }
               })
         else { throw SurroundingMapError.invalidResponse }
         return value
@@ -385,6 +416,9 @@ final class SurroundingMapStore: ObservableObject {
     @Published private(set) var downloadMessage: String?
     @Published private(set) var packs: [MapDownloadPack] = []
     var onScene: ((OfflineMapSceneWindow) -> Void)?
+    /// Exact legal limits for the current window.  Kept off
+    /// OfflineMapSceneWindow so the BLE scene payload stays byte-identical.
+    private(set) var latestSpeedLimits: [OfflineMapSpeedLimit] = []
 
     private let cache: MapTileCache
     private let fallback: (any OfflineMapSceneQuerying)?
@@ -599,6 +633,11 @@ final class SurroundingMapStore: ObservableObject {
         let points: [OfflineMapPointE6]
     }
 
+    private struct SpeedLimitKey: Hashable {
+        let kph: UInt16
+        let points: [OfflineMapPointE6]
+    }
+
     @discardableResult
     private func emit(documents: [MapTileDocument], origin: OfflineMapPointE6, includeFallback: Bool) -> Bool {
         var roads: [OfflineMapRoad] = []
@@ -616,6 +655,14 @@ final class SurroundingMapStore: ObservableObject {
                 buildings.append(building)
             }
         }
+        var speedLimits: [OfflineMapSpeedLimit] = []
+        var limitKeys: Set<SpeedLimitKey> = []
+        for limit in documents.flatMap(\.exactSpeedLimits) {
+            if limitKeys.insert(SpeedLimitKey(kph: limit.limitKPH, points: limit.points)).inserted {
+                speedLimits.append(limit)
+            }
+        }
+        latestSpeedLimits = speedLimits
         revision &+= 1
         if revision == 0 { revision = 1 }
         let document = OfflineMapSceneDocument(schemaVersion: 1, coordinateSystem: "GCJ-02",

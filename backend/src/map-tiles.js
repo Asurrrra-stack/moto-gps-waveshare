@@ -14,6 +14,9 @@ import { createSemaphore, readLimitedBody } from "./map-http.js";
 export const MAP_BUILD_MANIFEST = "https://build-metadata.protomaps.dev/builds.json";
 const DAY_MS = 86_400_000;
 const MAXIMUM_RANGE_BYTES = 8 * 1024 * 1024;
+// A dense city block rarely has more than a few dozen regulated segments;
+// the cap keeps one corrupt index entry from inflating a tile response.
+const MAXIMUM_SPEED_LIMIT_SEGMENTS = 128;
 const unzip = promisify(gunzip);
 const MOTOR_ROADS = new Set([
   "motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link",
@@ -50,15 +53,17 @@ function roadClass(detail) {
   return detail === "service" ? "service" : "other";
 }
 
-export function transformVectorTile(data, { z, x, y, revision, retrievedAt = new Date().toISOString() }) {
+export function transformVectorTile(data, { z, x, y, revision, retrievedAt = new Date().toISOString(),
+  speedLimits = null }) {
   validateTileCoordinates(z, x, y);
   const result = {
     schema_version: 1, coordinate_system: "GCJ-02", tile: { z, x, y }, roads: [], buildings: [],
+    speed_limits: [],
     source: { provider: "protomaps-openstreetmap", licence: "ODbL-1.0",
       attribution_url: "https://www.openstreetmap.org/copyright", retrieved_at: retrievedAt,
       source_revision: revision, bbox_wgs84: tileBoundsWgs84(z, x, y) },
   };
-  if (!data) return result;
+  if (!data) { attachSpeedLimits(result, speedLimits); return result; }
   if (data.byteLength > MAXIMUM_TILE_BYTES) throw new MapTileError("MAP_TILE_TOO_LARGE", "map tile exceeds decode limit");
   let pointCount = 0;
   function points(coordinates, polygon = false) {
@@ -118,10 +123,35 @@ export function transformVectorTile(data, { z, x, y, revision, retrievedAt = new
   if (result.roads.length + result.buildings.length > 12_000) {
     throw new MapTileError("MAP_TILE_TOO_LARGE", "map tile has too many features");
   }
+  attachSpeedLimits(result, speedLimits);
   if (Buffer.byteLength(JSON.stringify(result)) > MAXIMUM_TILE_BYTES) {
     throw new MapTileError("MAP_TILE_TOO_LARGE", "map tile JSON exceeds the size limit");
   }
   return result;
+}
+
+// Exact legal limits come from the OSM extracts, not from the vector tiles:
+// protomaps stores road geometry only, so each z15 tile carries the nearby
+// regulated segments as a side channel.  The phone matches them against the
+// rider position and falls back to a road-class estimate when nothing matches.
+function attachSpeedLimits(result, segments) {
+  if (!Array.isArray(segments)) return;
+  for (const segment of segments.slice(0, MAXIMUM_SPEED_LIMIT_SEGMENTS)) {
+    const limit = Number(segment?.limit);
+    if (!Number.isInteger(limit) || limit < 5 || limit > 160) continue;
+    const points = segment?.points_e6;
+    if (!Array.isArray(points) || points.length < 2 || points.length > 256) continue;
+    let valid = true;
+    for (const point of points) {
+      if (!Array.isArray(point) || point.length !== 2 ||
+          !Number.isInteger(point[0]) || !Number.isInteger(point[1]) ||
+          point[0] < -90_000_000 || point[0] > 90_000_000 ||
+          point[1] < -180_000_000 || point[1] > 180_000_000) { valid = false; break; }
+    }
+    if (!valid) continue;
+    const roadClass = String(segment?.class ?? "other").slice(0, 32);
+    result.speed_limits.push({ limit, class: roadClass, points_e6: points });
+  }
 }
 
 async function boundedDecompress(data, compression) {
@@ -207,6 +237,7 @@ export function selectLatestBuild(manifest) {
 export function createMapTileProvider({ url = "auto", cacheDirectory = resolve(".cache/map-tiles"),
   maximumCacheBytes = 1024 ** 3, fetchImpl = globalThis.fetch, timeoutMs = 10_000,
   now = () => Date.now(), archiveFactory, storage, scheduleRefresh = true,
+  speedLimitTiles = null,
   backgroundTask = (task) => { void task; } } = {}) {
   if (url === "disabled") return null;
   const automatic = url === "auto";
@@ -297,7 +328,9 @@ export function createMapTileProvider({ url = "auto", cacheDirectory = resolve("
           throw new MapTileError("MAP_INVALID_SOURCE", "map source does not contain z15 vector tiles");
         }
         const data = await current.getZxy(z, x, y, AbortSignal.timeout(timeoutMs * 3));
-        return transformVectorTile(data?.data, { z, x, y, revision, retrievedAt: new Date(now()).toISOString() });
+        const limits = speedLimitTiles ? speedLimitTiles.get(`${x}/${y}`) : null;
+        return transformVectorTile(data?.data, { z, x, y, revision, speedLimits: limits,
+          retrievedAt: new Date(now()).toISOString() });
       };
       let result;
       try { result = await retrieve(); } catch (error) {
@@ -325,7 +358,7 @@ export function createMapTileProvider({ url = "auto", cacheDirectory = resolve("
     async getTile(z, x, y) {
       validateTileCoordinates(z, x, y);
       await ready;
-      const name = `map-v1-${namespace}-${z}-${x}-${y}.json`;
+      const name = `map-v2-${namespace}-${z}-${x}-${y}.json`;
       const cached = await cache.get(name, { z, x, y });
       if (cached) {
         // Serve stored data immediately, including during source/manifest outages.

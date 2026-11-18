@@ -39,6 +39,9 @@ final class AppModel: ObservableObject {
     private var routePreviewGeneration: UInt64 = 0
     /// Latest surrounding-map window, kept for road-class speed estimation.
     private var lastMapScene: OfflineMapSceneWindow?
+    /// Exact limits delivered with that window.  A match beats the estimate,
+    /// so the device draws the solid red ring instead of the grey one.
+    private var lastSpeedLimits: [OfflineMapSpeedLimit] = []
 
     private static let recentPlacesKey = "MotoGPS.RecentPlaces.v1"
 
@@ -51,6 +54,7 @@ final class AppModel: ObservableObject {
 
         surroundingMap.onScene = { [weak self] scene in
             self?.lastMapScene = scene
+            self?.lastSpeedLimits = self?.surroundingMap.latestSpeedLimits ?? []
             self?.bluetooth.sendMapScene(scene)
         }
 
@@ -365,6 +369,16 @@ final class AppModel: ObservableObject {
         let metresPerLatitude = 111_195.0 / 1_000_000
         let latitudeRadians = Double(origin.latitudeE6) / 1_000_000 * .pi / 180
         let metresPerLongitude = metresPerLatitude * cos(latitudeRadians)
+        // Exact OSM values win. Within the gate the nearest regulated segment
+        // is authoritative, so the sign shows a value without the estimate ring.
+        if let exact = Self.exactSpeedLimitKPH(
+            origin: origin,
+            segments: lastSpeedLimits,
+            metresPerLatitude: metresPerLatitude,
+            metresPerLongitude: metresPerLongitude
+        ) {
+            return (exact, false)
+        }
         var nearest: (distanceM: Double, roadClass: String)?
         for road in scene.roads {
             let points = road.points
@@ -387,6 +401,39 @@ final class AppModel: ObservableObject {
             return nil
         }
         return (kph, true)
+    }
+
+    /// Roughly one lane width plus GNSS jitter, so a parallel street is never
+    /// mistaken for the one the rider is actually on.
+    private static let exactSpeedLimitRadiusM = 25.0
+
+    /// Matches the window origin against the regulated segments delivered with
+    /// the surrounding map and returns the nearest limit inside the gate.
+    private static func exactSpeedLimitKPH(
+        origin: OfflineMapPointE6,
+        segments: [OfflineMapSpeedLimit],
+        metresPerLatitude: Double,
+        metresPerLongitude: Double
+    ) -> UInt16? {
+        var best: (distanceM: Double, kph: UInt16)?
+        for segment in segments {
+            let points = segment.points
+            guard points.count >= 2 else { continue }
+            for index in 1 ..< points.count {
+                let distance = distanceToSegment(
+                    origin,
+                    points[index - 1],
+                    points[index],
+                    metresPerLatitude: metresPerLatitude,
+                    metresPerLongitude: metresPerLongitude
+                )
+                if distance <= exactSpeedLimitRadiusM,
+                   best.map({ distance < $0.distanceM }) ?? true {
+                    best = (distance, segment.limitKPH)
+                }
+            }
+        }
+        return best?.kph
     }
 
     private static func distanceToSegment(
