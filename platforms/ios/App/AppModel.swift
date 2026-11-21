@@ -361,8 +361,9 @@ final class AppModel: ObservableObject {
 
     /// Road-class estimate used when the gateway returns no legal limit.
     /// The mapped road nearest the latest map window origin decides the band.
-    /// Roads that cannot be classified return nil, so the sign stays hidden
-    /// instead of inventing a limit for a service road or a courtyard.
+    /// Every mapped way now resolves to a band, so the badge is always drawn:
+    /// a missing legal limit no longer hides it. Only a missing map window
+    /// still leaves it off, because there is nothing to classify yet.
     private func estimatedSpeedLimitKPH() -> (kph: UInt16, estimated: Bool)? {
         guard let scene = lastMapScene else { return nil }
         let origin = scene.origin
@@ -396,11 +397,11 @@ final class AppModel: ObservableObject {
                 }
             }
         }
-        guard let nearest else { return nil }
-        guard let kph = Self.speedLimitKPH(forRoadClass: nearest.roadClass) else {
-            return nil
-        }
-        return (kph, true)
+        // No mapped way inside the window happens in car parks and courtyards.
+        // Keep the badge visible with the urban no-centre-line band instead of
+        // blanking the corner, which is what the rider read as a missing sign.
+        guard let nearest else { return (30, true) }
+        return (Self.speedLimitKPH(forRoadClass: nearest.roadClass), true)
     }
 
     /// Roughly one lane width plus GNSS jitter, so a parallel street is never
@@ -460,16 +461,23 @@ final class AppModel: ObservableObject {
         return hypot(originX - nearestX, originY - nearestY)
     }
 
-    /// Only classes whose legal limit is unambiguous nationwide get a band.
-    /// Residential streets, service roads and unclassified ways vary from
-    /// courtyard to courtyard, so they return nil and draw no sign at all.
-    private static func speedLimitKPH(forRoadClass roadClass: String) -> UInt16? {
+    /// Posted-limit bands by OSM class, following the defaults Chinese road
+    /// authorities actually post. Every class resolves to a value: motorway
+    /// 120; urban expressway 80; multi-lane arterial 60; city road with one
+    /// lane each way 50; city road without a centre line 30; residential or
+    /// campus service lane 20; rural road without a centre line 40. Unknown
+    /// classes take the urban band instead of hiding the sign.
+    private static func speedLimitKPH(forRoadClass roadClass: String) -> UInt16 {
         switch roadClass {
         case "motorway", "motorway_link": return 120
-        case "trunk", "trunk_link", "primary", "primary_link": return 80
+        case "trunk", "trunk_link": return 80
+        case "primary", "primary_link": return 60
         case "secondary", "secondary_link": return 60
         case "tertiary", "tertiary_link": return 50
-        default: return nil
+        case "residential": return 30
+        case "living_street", "service": return 20
+        case "unclassified", "road", "track": return 40
+        default: return 30
         }
     }
 
